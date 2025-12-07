@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>9x9乘法冒險 - 數學勇者傳說</title>
+    <meta name="description" content="一款趣味數學冒險遊戲，透過挑戰9x9乘法表，讓勇者升級並獲得強大裝備！">
+
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#7c3aed">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="數學勇者">
+
+    <!-- Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="manifest" href="site.webmanifest">
+
+    <!-- Icons -->
+    <link rel="icon" type="image/png" sizes="512x512" href="icon/icon-512x512.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="icon/icon-192x192.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="icon/icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="144x144" href="icon/icon-144x144.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="icon/icon-128x128.png">
+    <link rel="apple-touch-icon" sizes="76x76" href="icon/icon-96x96.png">
+
+    <!-- Fonts & Styles -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('Service Worker 註冊成功:', reg.scope))
+                    .catch(err => console.log('Service Worker 註冊失敗:', err));
+            });
+        }
+    </script>
+</head>
+
+<body>
+    <!-- 開始畫面 -->
+    <div id="startScreen" class="screen active">
+        <div class="title-container">
+            <h1 class="game-title">
+                <span class="title-icon">⚔️</span>
+                數學勇者傳說
+                <span class="title-icon">🛡️</span>
+            </h1>
+            <p class="subtitle">挑戰9x9乘法表，成為最強勇者！</p>
+        </div>
+        <button class="btn-start" onclick="game.showStageSelect()">
+            開始冒險
+        </button>
+        <div class="start-info">
+            <p>✨ 答題升級 ✨ 解鎖裝備 ✨ 造型進化</p>
+        </div>
+    </div>
+
+    <!-- 關卡選擇畫面 -->
+    <div id="stageSelectScreen" class="screen">
+        <div class="screen-header">
+            <h2>選擇關卡</h2>
+            <button class="btn-back" onclick="game.showStart()">返回</button>
+        </div>
+        <div class="stage-grid" id="stageGrid">
+            <!-- 動態生成關卡按鈕 -->
+        </div>
+        <div class="player-status-bar">
+            <div class="status-item">
+                <span class="label">等級</span>
+                <span class="value" id="playerLevelDisplay">1</span>
+            </div>
+            <div class="status-item">
+                <span class="label">經驗值</span>
+                <span class="value" id="playerExpDisplay">0/100</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 遊戲畫面 -->
+    <div id="gameScreen" class="screen">
+        <div class="game-header">
+            <button class="btn-back" onclick="game.exitGame()">離開關卡</button>
+            <div class="stage-info">
+                <h3 id="currentStageTitle">關卡 1</h3>
+                <div class="progress-info">
+                    <span id="questionProgress">1/10</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="game-container">
+            <!-- 左側：角色與裝備 -->
+            <div class="left-panel">
+                <div class="character-panel">
+                    <div class="character" id="character">
+                        <!-- 勇者基礎造型 -->
+                        <div class="character-base">
+                            <div class="head">
+                                <div class="face">
+                                    <div class="eye eye-left"></div>
+                                    <div class="eye eye-right"></div>
+                                    <div class="mouth"></div>
+                                </div>
+                            </div>
+                            <div class="body"></div>
+                            <div class="arm arm-left"></div>
+                            <div class="arm arm-right"></div>
+                            <div class="leg leg-left"></div>
+                            <div class="leg leg-right"></div>
+                        </div>
+                        <!-- 裝備層 -->
+                        <div class="equipment-layer" id="equipmentLayer"></div>
+                    </div>
+                    <div class="character-stats">
+                        <div class="stat-row">
+                            <span class="stat-label">❤️ HP</span>
+                            <div class="hp-bar">
+                                <div class="hp-fill" id="hpFill"></div>
+                                <span class="hp-text" id="hpText">100/100</span>
+                            </div>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">⭐ LV</span>
+                            <span class="stat-value" id="charLevel">1</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">✨ EXP</span>
+                            <div class="exp-bar">
+                                <div class="exp-fill" id="expFill"></div>
+                                <span class="exp-text" id="expText">0/100</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 裝備欄 -->
+                <div class="equipment-panel">
+                    <h4>裝備欄</h4>
+                    <div class="equipment-slots" id="equipmentSlots">
+                        <!-- 動態生成 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 中間：戰鬥/題目區 -->
+            <div class="battle-area">
+                <div class="enemy" id="enemy">
+                    <div class="enemy-body">
+                        <div class="enemy-eye enemy-eye-left"></div>
+                        <div class="enemy-eye enemy-eye-right"></div>
+                        <div class="enemy-mouth"></div>
+                    </div>
+                    <div class="enemy-label" id="enemyLabel">數學怪獸</div>
+                </div>
+
+                <div class="question-panel">
+                    <div class="question-text" id="questionText">3 × 7 = ?</div>
+                    <div class="answer-input-container">
+                        <input type="number" id="answerInput" class="answer-input" placeholder="輸入答案"
+                            onkeypress="if(event.key === 'Enter') game.submitAnswer()">
+                        <button class="btn-submit" onclick="game.submitAnswer()">確認</button>
+                    </div>
+                </div>
+
+                <div class="feedback-message" id="feedbackMessage"></div>
+            </div>
+
+            <!-- 右側：資訊欄 -->
+            <div class="right-panel">
+                <div class="info-card">
+                    <h4>🎯 關卡目標</h4>
+                    <p>完成 <span class="highlight">10 道題目</span></p>
+                    <p>血量不歸零</p>
+                </div>
+
+                <div class="info-card">
+                    <h4>💡 提示</h4>
+                    <p>答對：<span class="highlight-green">+20 經驗</span></p>
+                    <p>答錯：<span class="highlight-red">-15 HP</span></p>
+                </div>
+
+                <div class="info-card achievement-card">
+                    <h4>🏆 今日成就</h4>
+                    <div id="achievementList">
+                        <p class="muted">開始遊戲解鎖成就！</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 升級彈窗 -->
+    <div id="levelUpModal" class="modal">
+        <div class="modal-content level-up-content">
+            <div class="level-up-effect">✨</div>
+            <h2>🎉 升級了！🎉</h2>
+            <p class="level-up-text">恭喜達到 <span class="highlight-level" id="newLevel">2</span> 級！</p>
+            <div class="new-equipment" id="newEquipmentDisplay">
+                <!-- 動態顯示新裝備 -->
+            </div>
+            <button class="btn-continue" onclick="game.closeLevelUpModal()">繼續冒險</button>
+        </div>
+    </div>
+
+    <!-- 關卡完成彈窗 -->
+    <div id="victoryModal" class="modal">
+        <div class="modal-content victory-content">
+            <h2>🏆 關卡完成！🏆</h2>
+            <p>你成功征服了這個關卡！</p>
+            <div class="victory-stats" id="victoryStats">
+                <!-- 動態顯示統計 -->
+            </div>
+            <div class="modal-buttons">
+                <button class="btn-primary" onclick="game.nextStage()">下一關</button>
+                <button class="btn-secondary" onclick="game.showStageSelect()">返回選關</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 失敗彈窗 -->
+    <div id="defeatModal" class="modal">
+        <div class="modal-content defeat-content">
+            <h2>💔 挑戰失敗</h2>
+            <p>別灰心，再試一次吧！</p>
+            <div class="modal-buttons">
+                <button class="btn-primary" onclick="game.retryStage()">重新挑戰</button>
+                <button class="btn-secondary" onclick="game.showStageSelect()">返回選關</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+
+</html>
