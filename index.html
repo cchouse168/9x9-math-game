@@ -55,11 +55,15 @@
             </h1>
             <p class="subtitle">挑戰9x9乘法表，成為最強勇者！</p>
         </div>
-        <button class="btn-start" onclick="game.showStageSelect()">
+        <button class="btn-start" onclick="game.startNewGame()">
             開始冒險
         </button>
         <div class="start-info">
             <p>✨ 答題升級 ✨ 解鎖裝備 ✨ 造型進化</p>
+        </div>
+        <div class="best-time-display">
+            <span class="best-time-label">🏆 最佳紀錄：</span>
+            <span class="best-time-value" id="bestTimeDisplay">--:--:--</span>
         </div>
     </div>
 
@@ -93,6 +97,10 @@
                 <div class="progress-info">
                     <span id="questionProgress">1/10</span>
                 </div>
+            </div>
+            <div class="timer-display">
+                <span class="timer-icon">⏱️</span>
+                <span class="timer-value" id="gameTimer">00:00.00</span>
             </div>
         </div>
 
@@ -231,9 +239,34 @@
             <h2>💔 挑戰失敗</h2>
             <p>別灰心，再試一次吧！</p>
             <div class="modal-buttons">
-                <button class="btn-primary" onclick="game.retryStage()">重新挑戰</button>
-                <button class="btn-secondary" onclick="game.showStageSelect()">返回選關</button>
+                <button class="btn-primary" onclick="game.restartGame()">重新開始</button>
+                <button class="btn-secondary" onclick="game.showStart()">返回主畫面</button>
             </div>
+        </div>
+    </div>
+
+    <!-- 終極勝利彈窗 -->
+    <div id="ultimateVictoryModal" class="modal">
+        <div id="fireworksContainer" class="fireworks-container"></div>
+        <div class="modal-content ultimate-victory-content">
+            <div class="ultimate-crown">👑</div>
+            <h2 class="ultimate-title">🎊 恭喜成為真正的勇者傳說！🎊</h2>
+            <div id="newRecordBadge" class="new-record-badge">🌟 新紀錄！</div>
+            <div class="ultimate-stats">
+                <div class="stat-item">
+                    <span class="stat-label">⏱️ 完成時間</span>
+                    <span class="stat-value" id="finalTime">00:00.00</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">🎯 正確率</span>
+                    <span class="stat-value" id="finalAccuracy">0/0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">🏆 最佳紀錄</span>
+                    <span class="stat-value" id="ultimateBestTime">--:--:--</span>
+                </div>
+            </div>
+            <button class="btn-ultimate" onclick="game.closeUltimateVictory()">再次挑戰</button>
         </div>
     </div>
 

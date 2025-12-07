@@ -1,35 +1,122 @@
 // ===== 遊戲資料結構 =====
 
-// 裝備定義
+// 裝備定義 (含經驗加乘)
 const EQUIPMENT_DATA = {
-    2: { name: '木劍', icon: '🗡️', type: 'weapon', style: 'wooden-sword' },
-    3: { name: '皮帽', icon: '🎩', type: 'helmet', style: 'leather-hat' },
-    4: { name: '布衣', icon: '👕', type: 'armor', style: 'cloth-armor' },
-    5: { name: '鐵劍', icon: '⚔️', type: 'weapon', style: 'iron-sword' },
-    6: { name: '木盾', icon: '🛡️', type: 'shield', style: 'wooden-shield' },
-    7: { name: '鐵盔', icon: '🪖', type: 'helmet', style: 'iron-helmet' },
-    8: { name: '鎖甲', icon: '🧥', type: 'armor', style: 'chain-armor' },
-    9: { name: '魔法披風', icon: '🌟', type: 'cape', style: 'magic-cape' },
-    10: { name: '王者冠冕', icon: '👑', type: 'crown', style: 'king-crown' }
+    2: { name: '木劍', icon: '🗡️', type: 'weapon', style: 'wooden-sword', expBonus: 0.1 },
+    3: { name: '皮帽', icon: '🎩', type: 'helmet', style: 'leather-hat', expBonus: 0.1 },
+    4: { name: '布衣', icon: '👕', type: 'armor', style: 'cloth-armor', expBonus: 0.1 },
+    5: { name: '鐵劍', icon: '⚔️', type: 'weapon', style: 'iron-sword', expBonus: 0.15 },
+    6: { name: '木盾', icon: '🛡️', type: 'shield', style: 'wooden-shield', expBonus: 0.15 },
+    7: { name: '鐵盔', icon: '🪖', type: 'helmet', style: 'iron-helmet', expBonus: 0.2 },
+    8: { name: '鎖甲', icon: '🧥', type: 'armor', style: 'chain-armor', expBonus: 0.2 },
+    9: { name: '魔法披風', icon: '🌟', type: 'cape', style: 'magic-cape', expBonus: 0.25 },
+    10: { name: '王者冠冕', icon: '👑', type: 'crown', style: 'king-crown', expBonus: 0.3 }
 };
+
+// 音效管理器
+class SoundManager {
+    constructor() {
+        this.audioContext = null;
+        this.enabled = true;
+    }
+
+    init() {
+        try {
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        } catch (e) {
+            console.log('音效不可用');
+        }
+    }
+
+    playCorrect() {
+        this.playTone(523.25, 0.1, 'sine'); // C5
+        setTimeout(() => this.playTone(659.25, 0.1, 'sine'), 100); // E5
+    }
+
+    playWrong() {
+        this.playTone(200, 0.2, 'sawtooth');
+    }
+
+    playLevelUp() {
+        const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+        notes.forEach((freq, i) => {
+            setTimeout(() => this.playTone(freq, 0.15, 'sine'), i * 100);
+        });
+    }
+
+    playVictory() {
+        // 華麗的勝利音效
+        const melody = [
+            { freq: 523.25, dur: 0.1 }, // C5
+            { freq: 587.33, dur: 0.1 }, // D5
+            { freq: 659.25, dur: 0.1 }, // E5
+            { freq: 783.99, dur: 0.1 }, // G5
+            { freq: 1046.50, dur: 0.3 }, // C6
+            { freq: 783.99, dur: 0.1 }, // G5
+            { freq: 1046.50, dur: 0.5 }, // C6
+        ];
+        let time = 0;
+        melody.forEach(note => {
+            setTimeout(() => this.playTone(note.freq, note.dur, 'sine'), time);
+            time += note.dur * 1000;
+        });
+    }
+
+    playTone(frequency, duration, type = 'sine') {
+        if (!this.audioContext || !this.enabled) return;
+
+        try {
+            const oscillator = this.audioContext.createOscillator();
+            const gainNode = this.audioContext.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(this.audioContext.destination);
+
+            oscillator.frequency.value = frequency;
+            oscillator.type = type;
+
+            gainNode.gain.setValueAtTime(0.3, this.audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + duration);
+
+            oscillator.start(this.audioContext.currentTime);
+            oscillator.stop(this.audioContext.currentTime + duration);
+        } catch (e) {
+            // 忽略音效錯誤
+        }
+    }
+}
 
 // ===== 角色類別 =====
 class Character {
     constructor() {
+        this.reset();
+    }
+
+    reset() {
         this.level = 1;
         this.exp = 0;
         this.maxHP = 100;
         this.currentHP = 100;
         this.equipment = [];
-        this.loadProgress();
     }
 
     get expToNextLevel() {
         return this.level * 100;
     }
 
-    addExp(amount) {
-        this.exp += amount;
+    // 計算經驗加乘倍率
+    getExpMultiplier() {
+        let bonus = 1.0;
+        this.equipment.forEach(eq => {
+            bonus += eq.expBonus || 0;
+        });
+        return bonus;
+    }
+
+    addExp(baseAmount) {
+        const multiplier = this.getExpMultiplier();
+        const actualExp = Math.floor(baseAmount * multiplier);
+        this.exp += actualExp;
         const leveledUp = [];
 
         while (this.exp >= this.expToNextLevel && this.level < 10) {
@@ -38,51 +125,32 @@ class Character {
 
             // 解鎖裝備
             if (EQUIPMENT_DATA[this.level]) {
-                const newEquipment = EQUIPMENT_DATA[this.level];
+                const newEquipment = { ...EQUIPMENT_DATA[this.level] };
                 this.equipment.push(newEquipment);
                 leveledUp.push(newEquipment);
             }
         }
 
-        this.saveProgress();
-        return leveledUp;
+        // 回傳實際獲得經驗與升級資訊
+        return { leveledUp, actualExp, multiplier };
+    }
+
+    // 檢查是否達成終極勝利
+    isMaxLevel() {
+        return this.level >= 10 && this.exp >= this.expToNextLevel;
     }
 
     takeDamage(amount) {
         this.currentHP = Math.max(0, this.currentHP - amount);
-        this.saveProgress();
         return this.currentHP <= 0;
     }
 
     heal(amount) {
         this.currentHP = Math.min(this.maxHP, this.currentHP + amount);
-        this.saveProgress();
     }
 
     resetHP() {
         this.currentHP = this.maxHP;
-        this.saveProgress();
-    }
-
-    saveProgress() {
-        const data = {
-            level: this.level,
-            exp: this.exp,
-            currentHP: this.currentHP,
-            equipment: this.equipment
-        };
-        localStorage.setItem('gameProgress', JSON.stringify(data));
-    }
-
-    loadProgress() {
-        const saved = localStorage.getItem('gameProgress');
-        if (saved) {
-            const data = JSON.parse(saved);
-            this.level = data.level || 1;
-            this.exp = data.exp || 0;
-            this.currentHP = data.currentHP || 100;
-            this.equipment = data.equipment || [];
-        }
     }
 }
 
@@ -124,24 +192,127 @@ class Stage {
     }
 }
 
+// ===== 計時器類別 =====
+class GameTimer {
+    constructor() {
+        this.startTime = null;
+        this.elapsedTime = 0;
+        this.isRunning = false;
+        this.timerInterval = null;
+        this.bestTime = this.loadBestTime();
+    }
+
+    start() {
+        this.startTime = Date.now();
+        this.isRunning = true;
+        this.timerInterval = setInterval(() => this.update(), 100);
+    }
+
+    stop() {
+        if (this.timerInterval) {
+            clearInterval(this.timerInterval);
+            this.timerInterval = null;
+        }
+        this.isRunning = false;
+        this.elapsedTime = Date.now() - this.startTime;
+        return this.elapsedTime;
+    }
+
+    reset() {
+        this.stop();
+        this.elapsedTime = 0;
+        this.startTime = null;
+        this.updateDisplay();
+    }
+
+    update() {
+        if (this.isRunning && this.startTime) {
+            this.elapsedTime = Date.now() - this.startTime;
+            this.updateDisplay();
+        }
+    }
+
+    updateDisplay() {
+        const timerEl = document.getElementById('gameTimer');
+        if (timerEl) {
+            timerEl.textContent = this.formatTime(this.elapsedTime);
+        }
+    }
+
+    formatTime(ms) {
+        const totalSeconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        const hundredths = Math.floor((ms % 1000) / 10);
+        return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${hundredths.toString().padStart(2, '0')}`;
+    }
+
+    checkNewRecord() {
+        if (this.bestTime === null || this.elapsedTime < this.bestTime) {
+            this.bestTime = this.elapsedTime;
+            this.saveBestTime();
+            return true;
+        }
+        return false;
+    }
+
+    saveBestTime() {
+        localStorage.setItem('mathHeroBestTime', this.bestTime.toString());
+    }
+
+    loadBestTime() {
+        const saved = localStorage.getItem('mathHeroBestTime');
+        return saved ? parseInt(saved) : null;
+    }
+
+    getBestTimeFormatted() {
+        return this.bestTime ? this.formatTime(this.bestTime) : '--:--:--';
+    }
+}
+
 // ===== 遊戲管理器 =====
 class GameManager {
     constructor() {
         this.character = new Character();
         this.currentStage = null;
-        this.achievementsList = [];
+        this.timer = new GameTimer();
+        this.sound = new SoundManager();
+        this.gameStarted = false;
+        this.totalCorrect = 0;
+        this.totalQuestions = 0;
         this.init();
     }
 
     init() {
         this.updateUI();
         this.showStart();
+        this.updateBestTimeDisplay();
+    }
+
+    // ===== 新遊戲開始 =====
+    startNewGame() {
+        // 重置角色為 Lv1
+        this.character.reset();
+        this.timer.reset();
+        this.gameStarted = true;
+        this.totalCorrect = 0;
+        this.totalQuestions = 0;
+
+        // 初始化音效
+        this.sound.init();
+
+        // 開始計時
+        this.timer.start();
+
+        // 進入關卡選擇
+        this.showStageSelect();
     }
 
     // ===== 畫面切換 =====
     showStart() {
         this.hideAllScreens();
         document.getElementById('startScreen').classList.add('active');
+        this.updateBestTimeDisplay();
     }
 
     showStageSelect() {
@@ -202,6 +373,20 @@ class GameManager {
         document.getElementById('playerLevelDisplay').textContent = this.character.level;
         document.getElementById('playerExpDisplay').textContent =
             `${this.character.exp}/${this.character.expToNextLevel}`;
+
+        // 顯示經驗加乘
+        const multiplier = this.character.getExpMultiplier();
+        const bonusEl = document.getElementById('expBonusDisplay');
+        if (bonusEl) {
+            bonusEl.textContent = multiplier > 1 ? `(x${multiplier.toFixed(1)})` : '';
+        }
+    }
+
+    updateBestTimeDisplay() {
+        const bestTimeEl = document.getElementById('bestTimeDisplay');
+        if (bestTimeEl) {
+            bestTimeEl.textContent = this.timer.getBestTimeFormatted();
+        }
     }
 
     updateGameUI() {
@@ -215,6 +400,13 @@ class GameManager {
         // 更新進度
         if (this.currentStage) {
             document.getElementById('questionProgress').textContent = this.currentStage.getProgress();
+        }
+
+        // 更新經驗加乘顯示
+        const multiplier = this.character.getExpMultiplier();
+        const bonusInfo = document.getElementById('expBonusInfo');
+        if (bonusInfo) {
+            bonusInfo.textContent = multiplier > 1 ? `經驗加乘: x${multiplier.toFixed(1)}` : '';
         }
     }
 
@@ -248,6 +440,7 @@ class GameManager {
             slot.innerHTML = `
                 <div class="icon">${eq.icon}</div>
                 <div class="name">${eq.name}</div>
+                <div class="bonus">+${Math.round(eq.expBonus * 100)}%</div>
             `;
             slotsContainer.appendChild(slot);
         });
@@ -383,16 +576,29 @@ class GameManager {
         }
 
         const isCorrect = this.currentStage.checkAnswer(userAnswer);
+        this.totalQuestions++;
 
         if (isCorrect) {
-            this.showFeedback('✅ 答對了！', true);
-            const newEquipment = this.character.addExp(20);
+            this.totalCorrect++;
+            this.sound.playCorrect();
+            const result = this.character.addExp(20);
+
+            // 顯示獲得經驗（含加乘）
+            const bonusText = result.multiplier > 1 ? ` (x${result.multiplier.toFixed(1)})` : '';
+            this.showFeedback(`✅ 答對了！+${result.actualExp} EXP${bonusText}`, true);
 
             // 檢查是否升級
-            if (newEquipment.length > 0) {
-                setTimeout(() => this.showLevelUpModal(newEquipment), 500);
+            if (result.leveledUp.length > 0) {
+                setTimeout(() => this.showLevelUpModal(result.leveledUp), 500);
+            }
+
+            // 檢查是否達成終極勝利 (Lv10 滿經驗)
+            if (this.character.level >= 10) {
+                setTimeout(() => this.showUltimateVictory(), 800);
+                return;
             }
         } else {
+            this.sound.playWrong();
             this.showFeedback(`❌ 答錯了！正確答案是 ${this.currentStage.question.answer}`, false);
             const isDead = this.character.takeDamage(15);
 
@@ -429,6 +635,7 @@ class GameManager {
 
     // ===== 彈窗控制 =====
     showLevelUpModal(newEquipment) {
+        this.sound.playLevelUp();
         const modal = document.getElementById('levelUpModal');
         document.getElementById('newLevel').textContent = this.character.level;
 
@@ -436,6 +643,7 @@ class GameManager {
         display.innerHTML = newEquipment.map(eq => `
             <div class="equipment-reward">${eq.icon}</div>
             <div class="equipment-name">獲得：${eq.name}</div>
+            <div class="equipment-bonus">經驗加乘 +${Math.round(eq.expBonus * 100)}%</div>
         `).join('');
 
         modal.classList.add('show');
@@ -444,7 +652,13 @@ class GameManager {
 
     closeLevelUpModal() {
         document.getElementById('levelUpModal').classList.remove('show');
-        document.getElementById('answerInput').focus();
+
+        // 檢查是否已達 Lv10
+        if (this.character.level >= 10) {
+            setTimeout(() => this.showUltimateVictory(), 300);
+        } else {
+            document.getElementById('answerInput').focus();
+        }
     }
 
     showVictoryModal() {
@@ -455,12 +669,70 @@ class GameManager {
             <p>✅ 答對題數：${this.currentStage.correctAnswers}/${this.currentStage.totalQuestions}</p>
             <p>❤️ 剩餘血量：${this.character.currentHP}/${this.character.maxHP}</p>
             <p>⭐ 當前等級：${this.character.level}</p>
+            <p>⏱️ 已用時間：${this.timer.formatTime(this.timer.elapsedTime)}</p>
         `;
 
         modal.classList.add('show');
     }
 
+    // ===== 終極勝利 =====
+    showUltimateVictory() {
+        this.timer.stop();
+        this.sound.playVictory();
+
+        const isNewRecord = this.timer.checkNewRecord();
+        const modal = document.getElementById('ultimateVictoryModal');
+
+        if (modal) {
+            document.getElementById('finalTime').textContent = this.timer.formatTime(this.timer.elapsedTime);
+            document.getElementById('finalAccuracy').textContent =
+                `${this.totalCorrect}/${this.totalQuestions} (${Math.round(this.totalCorrect / this.totalQuestions * 100)}%)`;
+
+            const recordBadge = document.getElementById('newRecordBadge');
+            if (recordBadge) {
+                recordBadge.style.display = isNewRecord ? 'block' : 'none';
+            }
+
+            const bestTimeEl = document.getElementById('ultimateBestTime');
+            if (bestTimeEl) {
+                bestTimeEl.textContent = this.timer.getBestTimeFormatted();
+            }
+
+            modal.classList.add('show');
+
+            // 觸發煙火特效
+            this.triggerFireworks();
+        }
+    }
+
+    triggerFireworks() {
+        const container = document.getElementById('fireworksContainer');
+        if (!container) return;
+
+        container.innerHTML = '';
+
+        // 創建多個煙火
+        for (let i = 0; i < 20; i++) {
+            setTimeout(() => {
+                const firework = document.createElement('div');
+                firework.className = 'firework';
+                firework.style.left = Math.random() * 100 + '%';
+                firework.style.top = Math.random() * 60 + 20 + '%';
+                firework.style.setProperty('--hue', Math.random() * 360);
+                container.appendChild(firework);
+
+                setTimeout(() => firework.remove(), 1500);
+            }, i * 200);
+        }
+    }
+
+    closeUltimateVictory() {
+        document.getElementById('ultimateVictoryModal').classList.remove('show');
+        this.showStart();
+    }
+
     showDefeatModal() {
+        this.timer.stop();
         const modal = document.getElementById('defeatModal');
         modal.classList.add('show');
     }
@@ -479,6 +751,11 @@ class GameManager {
         if (this.currentStage) {
             this.showGame(this.currentStage.number);
         }
+    }
+
+    restartGame() {
+        document.getElementById('defeatModal').classList.remove('show');
+        this.startNewGame();
     }
 
     updateUI() {
